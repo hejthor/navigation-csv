@@ -80,7 +80,9 @@ def aggregate_paths(output_dir):
     print("Aggregating paths across users...")
     path_counts = defaultdict(int)
     path_users = defaultdict(set)
+    action_stats = defaultdict(lambda: {'occurrences': 0, 'users': set()})
 
+    # First pass: collect path statistics
     for path_file in os.listdir(output_dir + "/" + USER_PATHS_DIR):
         user = path_file.split('_')[0]
         full_path = os.path.join(output_dir + "/" + USER_PATHS_DIR, path_file)
@@ -92,7 +94,15 @@ def aggregate_paths(output_dir):
                     path_counts[path] += 1
                     path_users[path].add(user)
 
-    # Write summary of paths
+    # Second pass: collect action statistics by sequence position
+    for path, users in path_users.items():
+        actions = path.split(' -> ')
+        for seq, action in enumerate(actions, start=1):
+            key = (seq, action)
+            action_stats[key]['occurrences'] += path_counts[path]
+            action_stats[key]['users'].update(users)
+
+    # Write summary of paths (unchanged)
     with open(output_dir + "/" + OUTPUT_FILE, 'w', newline='', encoding='utf-8') as f_out:
         writer = csv.writer(f_out)
         writer.writerow(['Path', 'Occurrences', 'Users'])
@@ -101,15 +111,19 @@ def aggregate_paths(output_dir):
 
     print(f"Created summary: {OUTPUT_FILE}")
 
-    # Write detailed action breakdown
+    # Write detailed action breakdown in the new format
     with open(output_dir + "/" + DETAILED_OUTPUT_FILE, 'w', newline='', encoding='utf-8') as f_detail:
         writer = csv.writer(f_detail)
-        writer.writerow(['Path', 'Sequence', 'Action', 'Occurrences', 'Users'])
-        for path, count in path_counts.items():
-            users_count = len(path_users[path])
-            actions = path.split(' -> ')
-            for i, action in enumerate(actions, start=1):
-                writer.writerow([path, i, action, count, users_count])
+        writer.writerow(['Sequence', 'Action', 'Occurrences', 'Users'])
+        
+        # Sort by sequence number first, then by action
+        for (seq, action), stats in sorted(action_stats.items(), key=lambda x: (x[0][0], x[0][1])):
+            writer.writerow([
+                seq,
+                action,
+                stats['occurrences'],
+                len(stats['users'])
+            ])
 
     print(f"Created detailed action breakdown: {DETAILED_OUTPUT_FILE}")
 
