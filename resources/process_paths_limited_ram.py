@@ -1,9 +1,15 @@
 import csv
 import os
+import sys
 from collections import defaultdict
 
-INPUT_FILE = 'actions.csv'
+# Increase CSV field size limit to maximum allowed by the system
+csv.field_size_limit(sys.maxsize)
+
+INPUT_FILE = '.csv'
 OUTPUT_FILE = 'paths_summary.csv'
+DETAILED_OUTPUT_FILE = 'paths_detailed.csv'
+PLANTUML_FILE = 'paths_diagram.puml'
 TARGET_ACTION = 'A'
 
 USER_DATA_DIR = 'user_data'
@@ -16,44 +22,45 @@ def ensure_dirs():
 
 
 def split_csv_by_user(input_file):
+    if os.listdir(USER_DATA_DIR):
+        print("User data directory already exists and is not empty. Skipping split.")
+        return
+
     print("Splitting input CSV into per-user files...")
 
-    open_files = {}
-    writers = {}
-
-    with open(input_file, newline='') as f:
+    with open(input_file, newline='', encoding='utf-16-le') as f:
         reader = csv.DictReader(f, delimiter=';')
         for row in reader:
             user = row['User']
             user_file = os.path.join(USER_DATA_DIR, f'{user}.csv')
-            if user not in open_files:
-                uf = open(user_file, 'w', newline='')
-                open_files[user] = uf
-                writer = csv.DictWriter(uf, fieldnames=reader.fieldnames, delimiter=';')
-                writer.writeheader()
-                writers[user] = writer
-            writers[user].writerow(row)
 
-    for f in open_files.values():
-        f.close()
+            file_exists = os.path.exists(user_file)
+            with open(user_file, 'a', newline='', encoding='utf-8') as uf:
+                writer = csv.DictWriter(uf, fieldnames=reader.fieldnames, delimiter=';')
+                if not file_exists:
+                    writer.writeheader()
+                writer.writerow(row)
 
     print("Split complete.")
 
 
 def sort_user_file_and_extract_paths():
+    if os.listdir(USER_PATHS_DIR):
+        print("User paths directory already exists and is not empty. Skipping path extraction.")
+        return
+
     print("Processing per-user files to extract paths...")
     for user_file in os.listdir(USER_DATA_DIR):
         user_path = os.path.join(USER_DATA_DIR, user_file)
 
-        # Read and sort rows by Date as string descending
-        with open(user_path, newline='') as f:
+        with open(user_path, newline='', encoding='utf-8') as f:
             reader = csv.DictReader(f, delimiter=';')
             rows = sorted(reader, key=lambda r: r['Date'], reverse=True)
 
         user = user_file.replace('.csv', '')
         output_path_file = os.path.join(USER_PATHS_DIR, f'{user}_paths.csv')
 
-        with open(output_path_file, 'w', newline='') as out_f:
+        with open(output_path_file, 'w', newline='', encoding='utf-8') as out_f:
             writer = csv.writer(out_f)
             i = 0
             while i < len(rows):
@@ -77,7 +84,7 @@ def aggregate_paths():
     for path_file in os.listdir(USER_PATHS_DIR):
         user = path_file.split('_')[0]
         full_path = os.path.join(USER_PATHS_DIR, path_file)
-        with open(full_path, newline='') as f:
+        with open(full_path, newline='', encoding='utf-8') as f:
             reader = csv.reader(f)
             for row in reader:
                 if row:
@@ -85,7 +92,8 @@ def aggregate_paths():
                     path_counts[path] += 1
                     path_users[path].add(user)
 
-    with open(OUTPUT_FILE, 'w', newline='') as f_out:
+    # Write summary of paths
+    with open(OUTPUT_FILE, 'w', newline='', encoding='utf-8') as f_out:
         writer = csv.writer(f_out)
         writer.writerow(['Path', 'Occurrences', 'Users'])
         for path, count in path_counts.items():
@@ -93,12 +101,51 @@ def aggregate_paths():
 
     print(f"Created summary: {OUTPUT_FILE}")
 
+    # Write detailed action breakdown
+    with open(DETAILED_OUTPUT_FILE, 'w', newline='', encoding='utf-8') as f_detail:
+        writer = csv.writer(f_detail)
+        writer.writerow(['Path', 'Sequence', 'Action', 'Occurrences', 'Users'])
+        for path, count in path_counts.items():
+            users_count = len(path_users[path])
+            actions = path.split(' -> ')
+            for i, action in enumerate(actions, start=1):
+                writer.writerow([path, i, action, count, users_count])
+
+    print(f"Created detailed action breakdown: {DETAILED_OUTPUT_FILE}")
+
+
+def generate_plantuml_diagram():
+    print("Generating PlantUML class diagram...")
+    actions = set()
+    connections = set()
+
+    with open(OUTPUT_FILE, newline='', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            path = row['Path']
+            steps = path.split(' -> ')
+            actions.update(steps)
+            for i in range(len(steps) - 1):
+                connections.add((steps[i], steps[i + 1]))
+
+    with open(PLANTUML_FILE, 'w', encoding='utf-8') as f:
+        f.write('@startuml\n\n')
+        for action in actions:
+            f.write(f'class {action} {{}}\n')
+        f.write('\n')
+        for a1, a2 in connections:
+            f.write(f'{a1} --> {a2}\n')
+        f.write('\n@enduml\n')
+
+    print(f"Created PlantUML diagram: {PLANTUML_FILE}")
+
 
 def main():
     ensure_dirs()
     split_csv_by_user(INPUT_FILE)
     sort_user_file_and_extract_paths()
     aggregate_paths()
+    generate_plantuml_diagram()
 
 
 if __name__ == '__main__':
