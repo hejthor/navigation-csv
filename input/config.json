@@ -1,0 +1,15 @@
+{
+  "output_files": {
+    "summary": "paths_summary.csv",
+    "detailed": "paths_detailed.csv",
+    "plantuml": "paths_diagram.puml"
+  },
+  "target_action": "A",
+  "directories": {
+    "user_data": "user_data",
+    "user_paths": "user_paths"
+  },
+  "csv": {
+    "delimiter": ";"
+  }
+}

@@ -11,7 +11,7 @@ echo "[TERMINAL] Installing Python dependencies"
 pip install -r resources/requirements.txt
 
 echo "[TERMINAL] Processing actions CSV"
-python resources/process_paths_limited_ram.py --input output/actions.csv --output output
+python resources/process_paths_limited_ram.py --input output/actions.csv --output output --config input/config.json
 
 echo "[TERMINAL] Deactivating virtual environment"
 deactivate
