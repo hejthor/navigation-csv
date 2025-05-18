@@ -11,7 +11,7 @@ echo "[TERMINAL] Installing Python dependencies"
 pip install -r resources/requirements.txt
 
 echo "[TERMINAL] Generating actions CSV"
-python resources/generate_csv.py --rows 100000000
+python resources/generate_csv.py --rows 1000000 --output output
 
 echo "[TERMINAL] Deactivating virtual environment"
 deactivate
